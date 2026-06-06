@@ -1,4 +1,6 @@
-const API = 'http://127.0.0.1:8000';
+const API = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
+  ? 'http://127.0.0.1:8000'
+  : ''; // In production (e.g. Vercel), requests are relative to the deployment domain
 
 function getToken() {
   return localStorage.getItem('token');

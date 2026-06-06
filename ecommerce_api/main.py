@@ -154,8 +154,6 @@ def on_startup():
     finally:
         db.close()
 
-@app.get("/")
-async def root():
-    return {
-        "message": "Welcome to the E-Commerce REST API. Please visit /docs for API documentation."
-    }
+from fastapi.staticfiles import StaticFiles
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
