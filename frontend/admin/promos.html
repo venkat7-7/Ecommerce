@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEasy Admin - Manage Promos</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      🛍️ <span>ShopEasy Admin</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item"><a href="index.html">📊 <span>Dashboard</span></a></li>
+      <li class="sidebar-item"><a href="products.html">📦 <span>Products</span></a></li>
+      <li class="sidebar-item"><a href="orders.html">📜 <span>Orders</span></a></li>
+      <li class="sidebar-item"><a href="users.html">👥 <span>Users</span></a></li>
+      <li class="sidebar-item active"><a href="promos.html">🎟️ <span>Promos</span></a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <li class="sidebar-item" style="list-style: none;"><a href="../index.html">🏪 <span>View Store</span></a></li>
+      <li class="sidebar-item" style="list-style: none;"><a href="#" id="admin-logout-btn">🚪 <span>Logout</span></a></li>
+    </div>
+  </div>
+
+  <!-- Main Content Panel -->
+  <div class="main-content">
+    <div class="page-header">
+      <div class="page-title">
+        <h1>Manage Promo Codes</h1>
+      </div>
+      <button class="btn btn-primary" id="open-promo-modal-btn">➕ Create Promo Code</button>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="promos-loading" class="spinner"></div>
+
+    <!-- Promos Card Table -->
+    <div class="table-card" id="promos-table-card" style="display: none;">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Value</th>
+              <th>Min Order</th>
+              <th>Max Discount</th>
+              <th>Expiry Date</th>
+              <th>Status</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="promos-table-body">
+            <!-- JavaScript will inject rows here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Promo Modal Backdrop -->
+  <div class="modal-backdrop" id="promo-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Promo Code</h3>
+        <button class="close-btn" id="close-modal-btn">&times;</button>
+      </div>
+      <form id="promo-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="promo-code">Promo Code *</label>
+            <input type="text" id="promo-code" class="form-control" style="text-transform: uppercase;" required placeholder="e.g. SUMMER50">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="form-group">
+              <label for="promo-type">Discount Type *</label>
+              <select id="promo-type" class="form-control" required>
+                <option value="percent">Percent (%)</option>
+                <option value="flat">Flat Amount (₹)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="promo-value">Discount Value *</label>
+              <input type="number" step="0.01" min="0.01" id="promo-value" class="form-control" required placeholder="e.g. 10.00">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="form-group">
+              <label for="promo-min-amt">Min Order Amount (₹) *</label>
+              <input type="number" step="0.01" min="0.00" id="promo-min-amt" class="form-control" required value="0.00">
+            </div>
+            <div class="form-group">
+              <label for="promo-max-disc">Max Discount Limit (₹)</label>
+              <input type="number" step="0.01" min="0.01" id="promo-max-disc" class="form-control" placeholder="Optional (e.g. 500)">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="promo-expiry">Expiry Date</label>
+            <input type="datetime-local" id="promo-expiry" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="promo-active" checked style="margin-right: 8px;">
+              Active on Creation
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-modal-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="save-promo-btn">Create Promo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../api.js"></script>
+  <script>
+    let promoList = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Verify admin auth
+      const user = getUser();
+      if (!getToken() || !user || user.role !== "admin") {
+        localStorage.clear();
+        window.location = "../login.html";
+        return;
+      }
+
+      // 2. Setup logout
+      document.getElementById("admin-logout-btn").onclick = (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location = "../index.html";
+      };
+
+      // 3. Modal Controls
+      document.getElementById("open-promo-modal-btn").onclick = openModal;
+      document.getElementById("close-modal-btn").onclick = closeModal;
+      document.getElementById("cancel-modal-btn").onclick = closeModal;
+      document.getElementById("promo-form").onsubmit = handleCreatePromo;
+
+      loadPromos();
+    });
+
+    async function loadPromos() {
+      const loader = document.getElementById("promos-loading");
+      const cardTable = document.getElementById("promos-table-card");
+      const tbody = document.getElementById("promos-table-body");
+
+      try {
+        promoList = await apiFetch("/api/admin/promo");
+        loader.style.display = "none";
+        tbody.innerHTML = "";
+
+        if (promoList.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted);">No promo codes created yet.</td></tr>`;
+        } else {
+          promoList.forEach(p => {
+            const tr = document.createElement("tr");
+
+            const expiryText = p.expires_at ? new Date(p.expires_at).toLocaleDateString(undefined, {
+              year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            }) : "Never";
+
+            const statusClass = p.is_active ? "badge-success" : "badge-gray";
+            const statusText = p.is_active ? "Active" : "Inactive";
+            
+            const maxDiscText = p.max_discount ? `₹${parseFloat(p.max_discount).toFixed(2)}` : "None";
+            const valSymbol = p.discount_type === "percent" ? "%" : "₹";
+            const valueText = p.discount_type === "percent" ? `${parseFloat(p.discount_value)}%` : `₹${parseFloat(p.discount_value).toFixed(2)}`;
+
+            const actionBtnText = p.is_active ? "Deactivate" : "Activate";
+            const actionBtnClass = p.is_active ? "btn-secondary" : "btn-primary";
+
+            tr.innerHTML = `
+              <td>${p.id}</td>
+              <td style="font-weight: 700; color: var(--primary);">${p.code}</td>
+              <td style="text-transform: capitalize;">${p.discount_type}</td>
+              <td style="font-weight: 600;">${valueText}</td>
+              <td>₹${parseFloat(p.min_order_amount).toFixed(2)}</td>
+              <td>${maxDiscText}</td>
+              <td style="font-size: 12px;">${expiryText}</td>
+              <td><span class="badge ${statusClass}">${statusText}</span></td>
+              <td style="text-align: right;">
+                <button class="btn ${actionBtnClass} toggle-active-btn" style="padding: 4px 8px; font-size: 12px;" data-id="${p.id}" data-active="${p.is_active}">
+                  ${actionBtnText}
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+
+        cardTable.style.display = "block";
+        setupTableActions();
+
+      } catch (err) {
+        loader.style.display = "none";
+        alert("Failed to load promo codes: " + err.message);
+      }
+    }
+
+    function setupTableActions() {
+      document.querySelectorAll(".toggle-active-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const promoId = parseInt(btn.getAttribute("data-id"));
+          const currentActive = btn.getAttribute("data-active") === "true";
+          const newActiveState = !currentActive;
+          const promo = promoList.find(p => p.id === promoId);
+
+          const actionMsg = newActiveState ? "activate" : "deactivate";
+          if (confirm(`Are you sure you want to ${actionMsg} promo code "${promo.code}"?`)) {
+            try {
+              btn.disabled = true;
+              await apiFetch(`/api/admin/promo/${promoId}`, {
+                method: "PUT",
+                body: JSON.stringify({ is_active: newActiveState })
+              });
+              alert(`Promo code ${newActiveState ? "activated" : "deactivated"} successfully!`);
+              loadPromos();
+            } catch (err) {
+              alert("Failed to update status: " + err.message);
+              btn.disabled = false;
+            }
+          }
+        };
+      });
+    }
+
+    function openModal() {
+      document.getElementById("promo-form").reset();
+      document.getElementById("promo-modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("promo-modal").style.display = "none";
+    }
+
+    async function handleCreatePromo(e) {
+      e.preventDefault();
+
+      const saveBtn = document.getElementById("save-promo-btn");
+      const codeVal = document.getElementById("promo-code").value.trim().toUpperCase();
+      const typeVal = document.getElementById("promo-type").value;
+      const valueVal = parseFloat(document.getElementById("promo-value").value);
+      const minAmtVal = parseFloat(document.getElementById("promo-min-amt").value);
+      
+      const maxDiscEl = document.getElementById("promo-max-disc");
+      const maxDiscVal = maxDiscEl.value.trim() !== "" ? parseFloat(maxDiscEl.value) : null;
+      
+      const expiryEl = document.getElementById("promo-expiry");
+      // convert datetime-local input to ISO string for backend
+      const expiryVal = expiryEl.value ? new Date(expiryEl.value).toISOString() : null;
+
+      const activeVal = document.getElementById("promo-active").checked;
+
+      const payload = {
+        code: codeVal,
+        discount_type: typeVal,
+        discount_value: valueVal,
+        min_order_amount: minAmtVal,
+        max_discount: maxDiscVal,
+        is_active: activeVal,
+        expires_at: expiryVal
+      };
+
+      try {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Creating...";
+
+        await apiFetch("/api/admin/promo", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+
+        alert("Promo code created successfully!");
+        closeModal();
+        loadPromos();
+
+      } catch (err) {
+        alert("Failed to create promo code: " + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Create Promo";
+      }
+    }
+  </script>
+</body>
+</html>

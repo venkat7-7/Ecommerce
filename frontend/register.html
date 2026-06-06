@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEasy - Register</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Shared Navbar Wrapper -->
+  <div id="navbar"></div>
+
+  <div class="container">
+    <div class="auth-container" style="max-width: 500px;">
+      <div class="card" style="background-color: #ffffff; padding: 30px;">
+        <h2 style="text-align: center; margin-bottom: 20px;">Create an Account</h2>
+        
+        <form id="register-form">
+          <div class="form-group">
+            <label for="reg-name">Full Name</label>
+            <input type="text" id="reg-name" class="form-control" required placeholder="John Doe">
+          </div>
+
+          <div class="form-group">
+            <label for="reg-email">Email Address</label>
+            <input type="email" id="reg-email" class="form-control" required placeholder="name@example.com">
+          </div>
+          
+          <div class="form-group">
+            <label for="reg-password">Password (min 6 characters)</label>
+            <input type="password" id="reg-password" class="form-control" required minlength="6" placeholder="••••••••">
+          </div>
+
+          <div class="form-group">
+            <label for="reg-confirm-password">Confirm Password</label>
+            <input type="password" id="reg-confirm-password" class="form-control" required minlength="6" placeholder="••••••••">
+          </div>
+          
+          <button type="submit" class="btn btn-primary btn-block" id="register-btn" style="padding: 12px; margin-top: 10px;">Sign Up</button>
+        </form>
+        
+        <p style="text-align: center; margin-top: 20px; font-size: 14px;">
+          Already have an account? <a href="login.html">Login here</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-links">
+      <a href="index.html">Home</a> | 
+      <a href="products.html">Products</a> | 
+      <a href="cart.html">Cart</a> | 
+      <a href="wishlist.html">Wishlist</a>
+    </div>
+    <p>&copy; 2026 ShopEasy Inc. All rights reserved.</p>
+  </footer>
+
+  <script src="api.js"></script>
+  <script src="navbar.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // If already logged in, redirect to index
+      if (getToken()) {
+        window.location = "index.html";
+        return;
+      }
+
+      document.getElementById("register-form").onsubmit = handleRegister;
+    });
+
+    async function handleRegister(e) {
+      e.preventDefault();
+
+      const nameVal = document.getElementById("reg-name").value.trim();
+      const emailVal = document.getElementById("reg-email").value.trim();
+      const passwordVal = document.getElementById("reg-password").value;
+      const confirmPasswordVal = document.getElementById("reg-confirm-password").value;
+      const btn = document.getElementById("register-btn");
+
+      // Verify passwords match
+      if (passwordVal !== confirmPasswordVal) {
+        showToast("Passwords do not match!", "error");
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        btn.textContent = "Registering...";
+
+        const data = await apiFetch("/api/auth/register", {
+          method: "POST",
+          body: JSON.stringify({
+            full_name: nameVal,
+            email: emailVal,
+            password: passwordVal
+          })
+        });
+
+        if (data && data.access_token) {
+          // Auto-login user
+          localStorage.setItem("token", data.access_token);
+          localStorage.setItem("user", JSON.stringify({
+            email: emailVal,
+            role: "user" // standard registered role
+          }));
+          
+          showToast("Registration successful!", "success");
+          
+          setTimeout(() => {
+            window.location = "index.html"; // redirect to landing
+          }, 800);
+        }
+
+      } catch (err) {
+        showToast("Registration failed: " + err.message, "error");
+        btn.disabled = false;
+        btn.textContent = "Sign Up";
+      }
+    }
+  </script>
+</body>
+</html>

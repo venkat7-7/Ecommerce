@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEasy - Checkout</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Shared Navbar Wrapper -->
+  <div id="navbar"></div>
+
+  <div class="container">
+    <h2>Secure Checkout</h2>
+
+    <!-- Loading Spinner -->
+    <div id="checkout-loading" class="spinner"></div>
+    <div id="checkout-error" style="display: none; color: var(--danger); text-align: center; margin: 20px 0;"></div>
+
+    <!-- Success Message Panel -->
+    <div id="checkout-success" class="card" style="display: none; text-align: center; padding: 40px; max-width: 600px; margin: 30px auto;">
+      <h2 style="color: var(--success); font-size: 32px; margin-bottom: 15px;">🎉 Order Placed!</h2>
+      <p style="font-size: 16px; margin-bottom: 8px;">Thank you for your purchase.</p>
+      <p style="font-size: 16px; margin-bottom: 25px;">Your order number is <strong id="success-order-number" style="color: var(--primary); font-size: 20px;"></strong>.</p>
+      <a href="orders.html" class="btn btn-primary">Track Your Order</a>
+    </div>
+
+    <!-- Checkout Grid -->
+    <div id="checkout-layout" class="checkout-layout" style="display: none; margin-top: 25px;">
+      <!-- Shipping Address Form -->
+      <div>
+        <div class="card" style="background-color: #ffffff;">
+          <h3>Shipping Address</h3>
+          <form id="shipping-form" style="margin-top: 15px;">
+            <div class="form-group">
+              <label for="ship-name">Full Name</label>
+              <input type="text" id="ship-name" class="form-control" required placeholder="John Doe">
+            </div>
+
+            <div class="form-group">
+              <label for="ship-address">Street Address</label>
+              <input type="text" id="ship-address" class="form-control" required placeholder="Apartment, building, street address">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div class="form-group">
+                <label for="ship-city">City</label>
+                <input type="text" id="ship-city" class="form-control" required placeholder="New York">
+              </div>
+              <div class="form-group">
+                <label for="ship-state">State</label>
+                <input type="text" id="ship-state" class="form-control" required placeholder="NY">
+              </div>
+            </div>
+
+            <div class="form-group" style="width: 50%;">
+              <label for="ship-zip">PIN / Zip Code</label>
+              <input type="text" id="ship-zip" class="form-control" required placeholder="10001">
+            </div>
+
+            <h3 style="margin-top: 30px;">Payment Method</h3>
+            <div class="form-group" style="margin-top: 15px;">
+              <label>
+                <input type="radio" name="payment-method" value="Cash on Delivery" checked style="margin-right: 8px;">
+                Cash on Delivery (COD)
+              </label>
+              <br>
+              <label>
+                <input type="radio" name="payment-method" value="UPI" style="margin-right: 8px;">
+                UPI / Net Banking
+              </label>
+              <br>
+              <label>
+                <input type="radio" name="payment-method" value="Credit/Debit Card" style="margin-right: 8px;">
+                Credit / Debit Card
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="place-order-btn" style="padding: 12px; margin-top: 20px;">Place Order (₹<span id="btn-order-total">0.00</span>)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Sidebar Summary -->
+      <div>
+        <div class="cart-summary-card">
+          <h3>Items in Order</h3>
+          <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+
+          <!-- Items list -->
+          <div id="checkout-items-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 20px;">
+            <!-- JavaScript will inject items -->
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+
+          <div class="cart-summary-row">
+            <span>Subtotal</span>
+            <span id="summary-subtotal">₹0.00</span>
+          </div>
+
+          <div class="cart-summary-row" id="discount-row" style="display: none; color: var(--success);">
+            <span>Discount (<span id="discount-code-name"></span>)</span>
+            <span id="summary-discount">-₹0.00</span>
+          </div>
+
+          <div class="cart-summary-row cart-summary-total">
+            <span>Total to Pay</span>
+            <span id="summary-total">₹0.00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-links">
+      <a href="index.html">Home</a> | 
+      <a href="products.html">Products</a> | 
+      <a href="cart.html">Cart</a> | 
+      <a href="wishlist.html">Wishlist</a>
+    </div>
+    <p>&copy; 2026 ShopEasy Inc. All rights reserved.</p>
+  </footer>
+
+  <script src="api.js"></script>
+  <script src="navbar.js"></script>
+
+  <script>
+    let cartData = null;
+    let appliedPromo = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!getToken()) {
+        showToast("Login required to checkout!", "error");
+        setTimeout(() => { window.location = "login.html"; }, 1000);
+        return;
+      }
+
+      const savedPromo = sessionStorage.getItem("applied_promo");
+      if (savedPromo) {
+        appliedPromo = JSON.parse(savedPromo);
+      }
+
+      loadCheckoutPage();
+    });
+
+    async function loadCheckoutPage() {
+      const loader = document.getElementById("checkout-loading");
+      const errorEl = document.getElementById("checkout-error");
+      const layoutEl = document.getElementById("checkout-layout");
+
+      try {
+        cartData = await apiFetch("/api/cart");
+        loader.style.display = "none";
+
+        if (!cartData || !cartData.items || cartData.items.length === 0) {
+          showToast("Your cart is empty!", "error");
+          setTimeout(() => { window.location = "cart.html"; }, 1000);
+          return;
+        }
+
+        renderSummaryItems(cartData.items);
+        recomputeSummary();
+        layoutEl.style.display = "grid";
+
+        // Setup Place Order submission
+        document.getElementById("shipping-form").onsubmit = handlePlaceOrder;
+
+      } catch (err) {
+        loader.style.display = "none";
+        errorEl.textContent = "Failed to load checkout details: " + err.message;
+        errorEl.style.display = "block";
+      }
+    }
+
+    function renderSummaryItems(items) {
+      const container = document.getElementById("checkout-items-list");
+      container.innerHTML = "";
+
+      items.forEach(item => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justify = "space-between";
+        row.style.fontSize = "13px";
+        row.style.marginBottom = "10px";
+        
+        const lineTotal = parseFloat(item.product.price) * item.quantity;
+
+        row.innerHTML = `
+          <span style="color: var(--text-primary); max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            ${item.product.name} <strong>x${item.quantity}</strong>
+          </span>
+          <span style="font-weight: 500;">₹${lineTotal.toFixed(2)}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function recomputeSummary() {
+      if (!cartData) return;
+
+      const subtotal = parseFloat(cartData.total);
+      document.getElementById("summary-subtotal").textContent = `₹${subtotal.toFixed(2)}`;
+
+      let discount = 0;
+      const discountRow = document.getElementById("discount-row");
+      const discountCodeName = document.getElementById("discount-code-name");
+      const summaryDiscount = document.getElementById("summary-discount");
+
+      if (appliedPromo) {
+        const minAmt = parseFloat(appliedPromo.min_order_amount);
+        if (subtotal >= minAmt) {
+          discount = parseFloat(appliedPromo.discount_amount);
+          discountRow.style.display = "flex";
+          discountCodeName.textContent = appliedPromo.code;
+          summaryDiscount.textContent = `-₹${discount.toFixed(2)}`;
+        } else {
+          sessionStorage.removeItem("applied_promo");
+          appliedPromo = null;
+          discountRow.style.display = "none";
+          showToast("Promo code invalidated due to updated cart subtotal", "error");
+        }
+      } else {
+        discountRow.style.display = "none";
+      }
+
+      const total = subtotal - discount;
+      document.getElementById("summary-total").textContent = `₹${total.toFixed(2)}`;
+      document.getElementById("btn-order-total").textContent = total.toFixed(2);
+    }
+
+    async function handlePlaceOrder(e) {
+      e.preventDefault();
+
+      const btn = document.getElementById("place-order-btn");
+      const shippingForm = document.getElementById("shipping-form");
+      
+      const shippingName = document.getElementById("ship-name").value.trim();
+      const shippingAddress = document.getElementById("ship-address").value.trim();
+      const shippingCity = document.getElementById("ship-city").value.trim();
+      const shippingState = document.getElementById("ship-state").value.trim();
+      const shippingZip = document.getElementById("ship-zip").value.trim();
+      
+      const paymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
+      const promoCode = appliedPromo ? appliedPromo.code : null;
+
+      try {
+        btn.disabled = true;
+        btn.textContent = "Placing Order...";
+
+        const order = await apiFetch("/api/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            shipping_name: shippingName,
+            shipping_address: shippingAddress,
+            shipping_city: shippingCity,
+            shipping_state: shippingState,
+            shipping_zip: shippingZip,
+            payment_method: paymentMethod,
+            promo_code: promoCode
+          })
+        });
+
+        // Success - clear resources
+        sessionStorage.removeItem("applied_promo");
+        appliedPromo = null;
+        
+        // Hide checkout grid, show success block
+        document.getElementById("checkout-layout").style.display = "none";
+        document.getElementById("success-order-number").textContent = order.order_number;
+        document.getElementById("checkout-success").style.display = "block";
+        
+        showToast("Order placed successfully!", "success");
+
+        if (window.updateNavbarCartBadge) {
+          await window.updateNavbarCartBadge();
+        }
+
+      } catch (err) {
+        showToast("Checkout failed: " + err.message, "error");
+        btn.disabled = false;
+        btn.textContent = `Place Order (₹${document.getElementById("summary-total").textContent.replace("₹", "")})`;
+      }
+    }
+  </script>
+</body>
+</html>

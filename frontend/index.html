@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEasy - Home</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Shared Navbar Wrapper -->
+  <div id="navbar"></div>
+
+  <div class="container">
+    <!-- Promo Banner Strip -->
+    <div class="promo-banner">
+      🎉 WELCOME OFFER: Use code <strong>WELCOME10</strong> for 10% off! (Min order ₹500)
+    </div>
+
+    <!-- Hero Section -->
+    <header class="hero">
+      <h1>ShopEasy</h1>
+      <p>Your one-stop destination for Premium Electronics, Classic Clothing, and Organic Groceries. Fast shipping, easy checkouts.</p>
+      <a href="products.html" class="btn btn-primary" style="font-size: 16px; padding: 12px 28px;">Shop Now</a>
+    </header>
+
+    <!-- Featured Products Section -->
+    <section>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Featured Products</h2>
+        <a href="products.html" style="font-weight: 500;">View All Products &rarr;</a>
+      </div>
+
+      <!-- Loading State -->
+      <div id="featured-loading" class="spinner"></div>
+
+      <!-- Product Grid -->
+      <div class="product-grid" id="featured-products" style="display: none;"></div>
+      
+      <!-- Error Alert -->
+      <div id="featured-error" style="display: none; color: var(--danger); text-align: center; margin: 20px 0;"></div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="footer-links">
+      <a href="index.html">Home</a> | 
+      <a href="products.html">Products</a> | 
+      <a href="cart.html">Cart</a> | 
+      <a href="wishlist.html">Wishlist</a>
+    </div>
+    <p>&copy; 2026 ShopEasy Inc. All rights reserved.</p>
+  </footer>
+
+  <script src="api.js"></script>
+  <script src="navbar.js"></script>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      loadFeaturedProducts();
+    });
+
+    async function loadFeaturedProducts() {
+      const loadingEl = document.getElementById("featured-loading");
+      const gridEl = document.getElementById("featured-products");
+      const errorEl = document.getElementById("featured-error");
+
+      try {
+        const products = await apiFetch("/api/products");
+        loadingEl.style.display = "none";
+        
+        if (!products || products.length === 0) {
+          errorEl.textContent = "No products available at the moment.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        // Show first 8 products
+        const featured = products.slice(0, 8);
+        gridEl.innerHTML = "";
+        
+        featured.forEach(prod => {
+          const card = document.createElement("div");
+          card.className = "product-card";
+          
+          // Star display logic
+          const fullStars = Math.round(prod.avg_rating);
+          let starsStr = "";
+          for (let i = 1; i <= 5; i++) {
+            starsStr += i <= fullStars ? "★" : "☆";
+          }
+          
+          const imageUrl = prod.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30";
+          
+          card.innerHTML = `
+            <div class="product-card-img-wrapper">
+              <a href="product.html?id=${prod.id}">
+                <img src="${imageUrl}" alt="${prod.name}" class="product-card-img" onerror="this.src='https://images.unsplash.com/photo-1523275335684-37898b6baf30'">
+              </a>
+            </div>
+            <div class="product-card-body">
+              <div class="product-card-category">${prod.category}</div>
+              <a href="product.html?id=${prod.id}" style="color: inherit; text-decoration: none;">
+                <h3 class="product-card-title">${prod.name}</h3>
+              </a>
+              <div class="product-card-rating">
+                <span class="stars">${starsStr}</span>
+                <span class="rating-count">(${prod.review_count})</span>
+              </div>
+              <div class="product-card-footer">
+                <div class="product-card-price">₹${parseFloat(prod.price).toFixed(2)}</div>
+                <button class="btn btn-primary add-to-cart-btn" data-id="${prod.id}">Add</button>
+              </div>
+            </div>
+          `;
+          
+          gridEl.appendChild(card);
+        });
+        
+        gridEl.style.display = "grid";
+        setupCartActions();
+
+      } catch (err) {
+        loadingEl.style.display = "none";
+        errorEl.textContent = "Failed to load featured products: " + err.message;
+        errorEl.style.display = "block";
+      }
+    }
+
+    function setupCartActions() {
+      const buttons = document.querySelectorAll(".add-to-cart-btn");
+      buttons.forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const productId = parseInt(btn.getAttribute("data-id"));
+          
+          if (!getToken()) {
+            showToast("Login required to add items to cart!", "error");
+            setTimeout(() => {
+              window.location = "login.html";
+            }, 1000);
+            return;
+          }
+          
+          try {
+            btn.disabled = true;
+            btn.textContent = "Adding...";
+            
+            await apiFetch("/api/cart", {
+              method: "POST",
+              body: JSON.stringify({ product_id: productId, quantity: 1 })
+            });
+            
+            showToast("Added to cart!", "success");
+            // Update navbar count badge
+            if (window.updateNavbarCartBadge) {
+              await window.updateNavbarCartBadge();
+            }
+          } catch (err) {
+            showToast("Could not add to cart: " + err.message, "error");
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "Add";
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>

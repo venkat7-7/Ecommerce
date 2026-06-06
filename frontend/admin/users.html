@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopEasy Admin - View Users</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      🛍️ <span>ShopEasy Admin</span>
+    </div>
+    <ul class="sidebar-menu">
+      <li class="sidebar-item"><a href="index.html">📊 <span>Dashboard</span></a></li>
+      <li class="sidebar-item"><a href="products.html">📦 <span>Products</span></a></li>
+      <li class="sidebar-item"><a href="orders.html">📜 <span>Orders</span></a></li>
+      <li class="sidebar-item active"><a href="users.html">👥 <span>Users</span></a></li>
+      <li class="sidebar-item"><a href="promos.html">🎟️ <span>Promos</span></a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <li class="sidebar-item" style="list-style: none;"><a href="../index.html">🏪 <span>View Store</span></a></li>
+      <li class="sidebar-item" style="list-style: none;"><a href="#" id="admin-logout-btn">🚪 <span>Logout</span></a></li>
+    </div>
+  </div>
+
+  <!-- Main Content Panel -->
+  <div class="main-content">
+    <div class="page-header">
+      <div class="page-title">
+        <h1>Registered Users</h1>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="users-loading" class="spinner"></div>
+
+    <!-- Users Card Table -->
+    <div class="table-card" id="users-table-card" style="display: none;">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Full Name</th>
+              <th>Email Address</th>
+              <th>Role</th>
+              <th>Joined Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <!-- JavaScript will inject rows here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="../api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Verify admin auth
+      const user = getUser();
+      if (!getToken() || !user || user.role !== "admin") {
+        localStorage.clear();
+        window.location = "../login.html";
+        return;
+      }
+
+      // 2. Setup logout
+      document.getElementById("admin-logout-btn").onclick = (e) => {
+        e.preventDefault();
+        localStorage.clear();
+        window.location = "../index.html";
+      };
+
+      loadUsers();
+    });
+
+    async function loadUsers() {
+      const loader = document.getElementById("users-loading");
+      const cardTable = document.getElementById("users-table-card");
+      const tbody = document.getElementById("users-table-body");
+
+      try {
+        const users = await apiFetch("/api/admin/users");
+        loader.style.display = "none";
+        tbody.innerHTML = "";
+
+        if (users.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No users registered in the system.</td></tr>`;
+        } else {
+          users.forEach(u => {
+            const tr = document.createElement("tr");
+
+            const joinedDate = new Date(u.created_at).toLocaleDateString(undefined, {
+              year: 'numeric', month: 'short', day: 'numeric'
+            });
+
+            const roleBadgeClass = u.role === "admin" ? "badge-info" : "badge-gray";
+            const statusBadgeClass = u.is_active ? "badge-success" : "badge-danger";
+            const statusText = u.is_active ? "Active" : "Inactive";
+
+            tr.innerHTML = `
+              <td>${u.id}</td>
+              <td style="font-weight: 600;">${u.full_name}</td>
+              <td>${u.email}</td>
+              <td><span class="badge ${roleBadgeClass}">${u.role}</span></td>
+              <td style="font-size: 12px; color: var(--text-muted);">${joinedDate}</td>
+              <td><span class="badge ${statusBadgeClass}">${statusText}</span></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+
+        cardTable.style.display = "block";
+
+      } catch (err) {
+        loader.style.display = "none";
+        alert("Failed to load users list: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
