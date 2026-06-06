@@ -1,2 +1,19 @@
+[project]
+name = "ecommerce-api"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy",
+    "pymysql",
+    "python-jose[cryptography]",
+    "bcrypt",
+    "pydantic[email]",
+    "python-multipart",
+    "python-dotenv",
+    "aiofiles"
+]
+
 [tool.vercel]
 entrypoint = "ecommerce_api.main:app"
