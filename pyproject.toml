@@ -1,2 +1,2 @@
 [tool.vercel]
-entrypoint = "ecommerce_api/main:app"
+entrypoint = "ecommerce_api.main:app"
