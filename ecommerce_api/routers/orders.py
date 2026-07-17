@@ -181,6 +181,13 @@ async def place_order(
     db.commit()
     db.refresh(new_order)
     
+    # 9. Trigger Celery task for order confirmation email asynchronously
+    try:
+        from ..tasks import send_order_confirmation_email
+        send_order_confirmation_email.delay(new_order.id)
+    except Exception as e:
+        print(f"Warning: Failed to queue order confirmation email: {e}")
+        
     return new_order
 
 @router.get("", response_model=List[OrderOut])

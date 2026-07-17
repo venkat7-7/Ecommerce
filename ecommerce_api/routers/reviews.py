@@ -1,3 +1,5 @@
+import os
+import requests
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from ..database import get_db
 from ..models import Review, Product, User
 from ..schemas import ReviewCreate, ReviewOut
 from ..utils.deps import get_current_user
+
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
@@ -112,3 +115,72 @@ async def delete_review(
     # Recalculate average rating and review count
     recalculate_product_ratings(product_id, db)
     return None
+
+@router.get("/{product_id}/summary")
+async def get_product_reviews_summary(
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves all product reviews and asks OpenAI to compile a bulleted sentiment summary.
+    """
+    # Verify product exists
+    product = db.query(Product).filter(Product.id == product_id, Product.is_active == True).first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+        
+    reviews = db.query(Review).filter(Review.product_id == product_id).all()
+    if not reviews:
+        return {"summary": "No reviews available yet for this product."}
+
+    # Filter out empty comments
+    comments = [f"- {r.rating} stars: {r.comment}" for r in reviews if r.comment and r.comment.strip()]
+    if not comments:
+        return {"summary": f"This product has {len(reviews)} numerical rating(s), but no written reviews to summarize yet."}
+
+    # 1. Graceful offline check if key is not configured
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        return {
+            "summary": "🔌 **AI Summary Unavailable**: Set `GEMINI_API_KEY` in your `.env` configuration file to activate AI review summarization."
+        }
+
+    # Compile comments
+    reviews_text = "\n".join(comments)
+
+    system_instruction = (
+        "You are an AI Product Review Summarizer representing ShopEasy. Analyze the customer reviews "
+        "provided for the product and write a concise, bulleted summary in Markdown format.\n\n"
+        "Your summary must include:\n"
+        "1. Overall Sentiment: A 1-2 sentence overview of customer satisfaction.\n"
+        "2. **Pros**: Highlights/strengths (e.g., sound quality, battery life, design).\n"
+        "3. **Cons**: Weaknesses/complaints (e.g., price, weight, tight fit, delivery speed).\n\n"
+        "Keep the output clear, highly readable, and under 150 words. Do not fabricate reviews or details."
+    )
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": f"Here are the customer reviews for '{product.name}':\n\n{reviews_text}"}]
+            }
+        ],
+        "systemInstruction": {
+            "parts": [{"text": system_instruction}]
+        }
+    }
+
+    try:
+        res = requests.post(url, json=payload, timeout=15)
+        if res.status_code == 200:
+            res_data = res.json()
+            reply = res_data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"summary": reply}
+        else:
+            return {"summary": f"⚠️ **Error**: Failed to generate summary from AI service (Status {res.status_code})."}
+    except Exception as e:
+        return {"summary": f"⚠️ **Connection Error**: Failed to reach summarizer service: {str(e)}"}

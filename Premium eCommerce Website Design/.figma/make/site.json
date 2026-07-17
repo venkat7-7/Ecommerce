@@ -1,0 +1,10 @@
+{
+  "description": "A premium, modern eCommerce platform offering a seamless shopping experience with advanced filters, responsive design, and user-friendly features for luxury brands.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

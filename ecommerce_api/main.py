@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base, SessionLocal
 from .models import User, Product, PromoCode
 from .utils.auth import get_password_hash
-from .routers import auth, products, cart, orders, reviews, wishlist, admin
+from .routers import auth, products, cart, orders, reviews, wishlist, admin, chat
 
 app = FastAPI(
     title="E-Commerce REST API",
@@ -30,6 +30,8 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(reviews.router, prefix="/api")
 app.include_router(wishlist.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+
 
 # Database initialization and seeding on startup
 @app.on_event("startup")
@@ -112,6 +114,10 @@ def on_startup():
                     is_active=True
                 )
             ]
+            from .utils.embeddings import get_embedding
+            for product in sample_products:
+                text_to_embed = f"{product.name} {product.category} {product.description or ''}"
+                product.embedding = get_embedding(text_to_embed)
             db.add_all(sample_products)
             
         # C. Seed Promo Codes (if table is empty)
@@ -146,8 +152,23 @@ def on_startup():
                 )
             ]
             db.add_all(sample_promos)
+        # Check if product embeddings match the current embedding dimension
+        db_products = db.query(Product).all()
+        if db_products:
+            from .utils.embeddings import get_embedding
+            sample_emb = get_embedding("test")
+            if sample_emb:
+                target_len = len(sample_emb)
+                first_product = db_products[0]
+                if not first_product.embedding or len(first_product.embedding) != target_len:
+                    print(f"Product embedding dimension mismatch (expected {target_len}). Re-generating all embeddings...")
+                    for product in db_products:
+                        text_to_embed = f"{product.name} {product.category} {product.description or ''}"
+                        product.embedding = get_embedding(text_to_embed)
+                    print("All product embeddings re-generated successfully.")
             
         db.commit()
+
     except Exception as e:
         db.rollback()
         print(f"Error during startup seeding: {e}")
@@ -155,5 +176,5 @@ def on_startup():
         db.close()
 
 from fastapi.staticfiles import StaticFiles
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="frontend-react/dist", html=True), name="frontend")
 

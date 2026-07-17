@@ -3,22 +3,23 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import pymysql
+import psycopg2
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Load env file from parent directory
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:root@localhost:3306/ecommerce_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/ecommerce_db")
 
-if DATABASE_URL.startswith("mysql://"):
-    DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://", 1)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 # Automatically create the database if it doesn't exist
-if DATABASE_URL.startswith("mysql+pymysql://"):
+if DATABASE_URL.startswith("postgresql+psycopg2://"):
     try:
         # Extract connection details
-        # Format: mysql+pymysql://user:password@host:port/dbname
-        conn_str = DATABASE_URL.replace("mysql+pymysql://", "")
+        # Format: postgresql+psycopg2://user:password@host:port/dbname
+        conn_str = DATABASE_URL.replace("postgresql+psycopg2://", "")
         if "/" in conn_str:
             auth_host, db_part = conn_str.rsplit("/", 1)
             db_name = db_part.split("?")[0]  # strip query parameters
@@ -29,26 +30,31 @@ if DATABASE_URL.startswith("mysql+pymysql://"):
                 password = auth_part.split(":")[1] if ":" in auth_part else ""
             else:
                 host_part = auth_host
-                user = "root"
+                user = "postgres"
                 password = ""
 
             host = host_part.split(":")[0]
-            port = int(host_part.split(":")[1]) if ":" in host_part else 3306
+            port = int(host_part.split(":")[1]) if ":" in host_part else 5432
 
-            # Connect without specifying database name to create it
-            conn = pymysql.connect(
+            # Connect to default database 'postgres' to create target db
+            conn = psycopg2.connect(
                 host=host,
                 user=user,
                 password=password,
-                port=port
+                port=port,
+                database="postgres"
             )
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             cursor = conn.cursor()
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
-            conn.commit()
+            cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}';")
+            exists = cursor.fetchone()
+            if not exists:
+                cursor.execute(f"CREATE DATABASE \"{db_name}\";")
+                print(f"Database '{db_name}' created.")
             cursor.close()
             conn.close()
     except Exception as e:
-        print(f"Warning: Automatic database creation check failed (verify your MySQL credentials): {e}")
+        print(f"Warning: Automatic database creation check failed: {e}")
 
 engine = create_engine(
     DATABASE_URL,

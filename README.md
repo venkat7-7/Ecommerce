@@ -1,24 +1,39 @@
-# ShopEasy - E-Commerce REST API & Frontend
+# ShopEasy — E-Commerce Platform
 
-A complete, production-ready, full-stack E-Commerce application. It features a robust Python/FastAPI backend API powered by SQLAlchemy and MySQL, and a beautiful, fully responsive frontend and Admin Dashboard built using Vanilla HTML, CSS, and JavaScript.
+A production-ready, full-stack E-Commerce application. It features a robust Python/FastAPI backend API powered by SQLAlchemy and PostgreSQL, async task processing via Celery & Redis, database migrations with Alembic, and two distinct frontend client options (a classic Vanilla HTML/CSS/JS frontend and a modern React 19 + Vite + Tailwind CSS v4 frontend).
 
 ---
 
 ## Technical Architecture
 
-### Backend API
+### ⚡ Backend API
 - **Language**: Python 3.11+
 - **Framework**: FastAPI
-- **ORM**: SQLAlchemy (synchronous)
-- **Database**: MySQL (using `pymysql` driver)
+- **ORM**: SQLAlchemy
+- **Database**: PostgreSQL (using `psycopg2-binary` driver)
+- **Task Queue**: Celery (with Redis broker & result backend)
 - **Authentication**: JWT (JSON Web Tokens - Access and Refresh token flow) via `python-jose`
 - **Security**: Password hashing and verification using native `bcrypt` (independent of passlib for maximum compatibility)
 - **Validation**: Pydantic v2
+- **Database Migrations**: Alembic
 - **Documentation**: Automatically generated Swagger UI
 
-### Frontend Applications
+### 🖥️ Client Applications
+This project includes two alternative frontends. You can run either or both depending on your testing needs:
+
+#### 1. React Frontend (`frontend-react/`)
+- **Technology Stack**: React 19, Vite, Tailwind CSS v4 (with `@tailwindcss/vite`), React Router v7, and Lucide React Icons
+- **Key Features**:
+  - **Dark Mode**: High-fidelity theme toggling with theme persistence using `localStorage`.
+  - **Dynamic Navbar & Footer**: Navigation that updates reactively based on authentication state (Admin vs. Customer).
+  - **E-Commerce Catalog**: Text search, multi-category filters, price sorting, and dynamic product cards.
+  - **Interactive Chatbot**: AI customer support assistant anchored to the application window.
+  - **Admin Dashboard**: Full metrics visualization (orders, sales, stock, and low-stock alerts) along with inline inventory and promo management.
+  - **Animations**: Fluid page load and scrolling animations using a custom `ScrollReveal` component.
+
+#### 2. Classic Frontend (`frontend/`)
 - **Technology Stack**: Vanilla HTML5, CSS3 (variables, flexbox, grid layouts, animations), and Vanilla JavaScript
-- **Features**: Responsive design, token-based state management (stored in `localStorage`), custom toast notification library, modular navbar renderer, and API middleware.
+- **Key Features**: Responsive grid layout, token-based state management (stored in `localStorage`), custom toast notification library, modular navbar renderer, and API middleware.
 
 ---
 
@@ -26,11 +41,20 @@ A complete, production-ready, full-stack E-Commerce application. It features a r
 
 ```text
 Ecommerce API/
+├── alembic/                ← Database migration versions and environment configurations
+├── alembic.ini             ← Alembic CLI setup file
+├── docker-compose.yml      ← Multi-container service definitions (web, worker, db, redis)
+├── Dockerfile              ← Docker instruction container for backend API & worker
+├── requirements.txt        ← Backend dependencies list
+├── .env                    ← Environment variables (ignored in Git)
+│
 ├── ecommerce_api/          ← Backend application package
-│   ├── main.py             ← FastAPI app, CORS middleware, and database seeding
-│   ├── database.py         ← MySQL connection and SessionLocal session builder
+│   ├── main.py             ← FastAPI app instance, CORS middleware, and database seeding
+│   ├── database.py         ← PostgreSQL connection and SessionLocal session builder
 │   ├── models.py           ← SQLAlchemy models (Users, Products, Cart, Orders, Reviews, Wishlists, Promos)
 │   ├── schemas.py          ← Pydantic validation schemas
+│   ├── celery_app.py       ← Celery queue configuration
+│   ├── tasks.py            ← Celery tasks (e.g. sending order confirmation emails)
 │   ├── routers/            ← Endpoint routes
 │   │   ├── auth.py         ← Register, login, token refreshing
 │   │   ├── products.py     ← Product searches, filters, categories
@@ -43,80 +67,145 @@ Ecommerce API/
 │       ├── auth.py         ← JWT token issuance and password checking
 │       └── deps.py         ← FastAPI dependencies (User & Admin security context injectors)
 │
-├── frontend/               ← Customer Web Frontend
-│   ├── index.html          ← Home Page with promo banners & featured items
-│   ├── products.html       ← Product catalog with search, categorization, and sorting
-│   ├── product.html        ← Detailed product page with specifications and customer reviews
-│   ├── cart.html           ← Cart page with quantity controls and coupon verification
-│   ├── checkout.html       ← Shipping address form and mock payment flow
-│   ├── orders.html         ← User's personal order history list
-│   ├── wishlist.html       ← Saved products list
-│   ├── login.html          ← User/Admin sign-in form
-│   ├── register.html       ← Customer registration form
-│   ├── style.css           ← Core styling tokens, grids, responsiveness, and animations
-│   ├── api.js              ← Base fetch API wrapper, authorization headers, and custom Toast UI
-│   ├── navbar.js           ← Shared modular navbar component
-│   │
-│   └── admin/              ← Dedicated Admin Dashboard Workspace
-│       ├── index.html      ← Overview metrics dashboard (orders, sales, stock, and low-stock alerts)
-│       ├── products.html   ← Create, update, soft-delete, and stock management modal
-│       ├── orders.html     ← Customer orders management, status changes, and CSV export
-│       ├── users.html      ← Customer directory display list
-│       ├── promos.html     ← Dynamic promo code creation and toggle controls
-│       └── admin.css       ← Custom sidebar-centric dark theme stylesheet
+├── frontend-react/         ← Modern React Frontend Application
+│   ├── src/
+│   │   ├── components/     ← Navbar, Footer, Chatbot, ProductCard, ScrollReveal
+│   │   ├── pages/          ← Home, Catalog, ProductDetail, Cart, Wishlist, Orders, Login, Register, AdminDashboard
+│   │   ├── App.jsx         ← Main React app & router configuration
+│   │   ├── index.css       ← Custom styles and Tailwind v4 directives
+│   │   └── api.js          ← API fetch wrapper and toast notifications
+│   ├── vite.config.js      ← Vite configuration (including API local development proxy)
+│   ├── package.json        ← Frontend npm script and dependencies configuration
+│   └── README.md           ← React-specific documentation
 │
-├── .env                    ← Local secrets and MySQL configuration (ignored in Git)
-├── .gitignore              ← Files excluded from Git version control
-├── requirements.txt        ← Backend dependencies list
-└── README.md               ← Project documentation
+└── frontend/               ← Classic Vanilla JS Frontend
+    ├── index.html          ← Home Page with promo banners & featured items
+    ├── style.css           ← Core styling tokens, grids, responsiveness, and animations
+    ├── api.js              ← Base fetch API wrapper, authorization headers, and custom Toast UI
+    ├── navbar.js           ← Shared modular navbar component
+    └── admin/              ← Dedicated Admin Dashboard Workspace
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Prerequisites
-Ensure you have the following installed:
-- Python 3.11+
-- MySQL Server (running locally on port `3306`)
+### Method 1: Running via Docker Compose (Recommended)
 
-### 2. Setup Backend Server
+Docker Compose starts the backend server, database, Redis broker, and Celery worker.
 
-1. **Install Python dependencies:**
+1. Ensure you have **Docker** and **Docker Compose** installed.
+2. In the root directory, build and run the services:
+   ```bash
+   docker-compose up --build
+   ```
+3. Once running:
+   - The Backend API will be available at: **`http://127.0.0.1:8000`**
+   - Swagger documentation is available at: **`http://127.0.0.1:8000/docs`**
+   - Celery and Redis will handle tasks in the background.
+
+---
+
+### Method 2: Manual Local Setup
+
+#### 1. Prerequisites
+- Python 3.11+ installed
+- Node.js & npm installed (for React frontend)
+- PostgreSQL Server running locally on port `5432`
+- Redis Server running locally on port `6379` (needed for Celery background tasks)
+
+#### 2. Configure Environment Variables
+Create a `.env` file in the root directory (a reference is provided below):
+```env
+DATABASE_URL=postgresql+psycopg2://postgres:root@localhost:5432/ecommerce_db
+SECRET_KEY=your_super_secret_key_change_this
+REFRESH_SECRET_KEY=your_refresh_secret_key_change_this
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional SMTP Configuration (if missing, Celery will log emails to the logs/ directory)
+SMTP_SERVER=
+SMTP_PORT=
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SENDER_EMAIL=noreply@ecommerce.com
+```
+*Note: Adjust connection credentials in `DATABASE_URL` to match your local PostgreSQL server. The application will automatically attempt to create the database schema `ecommerce_db` if it does not exist.*
+
+#### 3. Setup and Start Backend Server
+1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-
-2. **Configure Environment Variables:**
-   A default `.env` file is located in the root directory:
-   ```env
-   DATABASE_URL=mysql+pymysql://root:root@localhost:3306/ecommerce_db
-   SECRET_KEY=your_super_secret_key_change_this
-   REFRESH_SECRET_KEY=your_refresh_secret_key_change_this
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
-   REFRESH_TOKEN_EXPIRE_DAYS=7
+2. **Apply Database Migrations:**
+   ```bash
+   alembic upgrade head
    ```
-   *Note: Modify the `DATABASE_URL` credentials to match your local MySQL username, password, and port. On startup, the application will automatically create the `ecommerce_db` schema in your MySQL instance if it doesn't already exist.*
-
 3. **Run the Development Server:**
    ```bash
    uvicorn ecommerce_api.main:app --reload
    ```
-   - Swagger documentation is available at: **`http://127.0.0.1:8000/docs`**
-   - The server will seed initial test accounts, catalog products, and promo codes automatically.
+   - Swagger Docs: **`http://127.0.0.1:8000/docs`**
+   - The application automatically seeds initial mock accounts, products, and promo codes on startup.
 
-### 3. Setup Frontend Web Server
+#### 4. Run Celery Worker (Optional)
+If you want to process background tasks (such as sending order confirmation emails):
+1. Ensure your Redis server is running.
+2. In a separate terminal run the worker:
+   ```bash
+   celery -A ecommerce_api.celery_app.celery_app worker --loglevel=info
+   ```
+   *For Windows users running Celery, you may need to install eventlet (`pip install eventlet`) and start the worker with:*
+   ```bash
+   celery -A ecommerce_api.celery_app.celery_app worker --loglevel=info -P eventlet
+   ```
 
-The frontend pages can be run using any local static web server. 
+#### 5. Run the React Frontend
+1. Navigate to the `frontend-react` folder:
+   ```bash
+   cd frontend-react
+   ```
+2. Install npm dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+4. Open your browser to: **`http://localhost:5173`** (Requests to `/api/*` are proxied to `http://127.0.0.1:8000` automatically).
 
-To run using Python's built-in HTTP server:
-1. Open a new terminal in the project root.
-2. Serve the `frontend` folder:
+#### 6. Run the Classic Frontend
+If you prefer running the Vanilla frontend:
+1. Navigate to the `frontend` folder:
    ```bash
    cd frontend
+   ```
+2. Start a static local server (e.g. using Python):
+   ```bash
    python -m http.server 5500
    ```
-3. Open your browser and navigate to: **`http://127.0.0.1:5500`**
+3. Open your browser to: **`http://127.0.0.1:5500`**
+
+---
+
+## Alembic Migration Commands
+
+Alembic handles database migrations. Use the following commands:
+- **Create a new migration after model changes:**
+  ```bash
+  alembic revision --autogenerate -m "description of changes"
+  ```
+- **Apply migrations to the database:**
+  ```bash
+  alembic upgrade head
+  ```
+- **Revert the last migration:**
+  ```bash
+  alembic downgrade -1
+  ```
 
 ---
 
@@ -179,6 +268,6 @@ The database seeds initial user accounts and catalog values on its first start:
 | `GET` | `/api/admin/users` | Admin | Access the user accounts roster directory |
 | `GET` | `/api/admin/dashboard` | Admin | Fetch revenue aggregate, order volumes, user signup count, and low stock lists |
 | `GET` | `/api/admin/orders/export` | Admin | Export the entire orders log database to a CSV download attachment |
-| `POST` | `/api/api/admin/promo` | Admin | Insert new promotion code rules |
+| `POST` | `/api/admin/promo` | Admin | Insert new promotion code rules |
 | `GET` | `/api/admin/promo` | Admin | Fetch system-wide list of active & inactive promo codes |
 | `PUT` | `/api/admin/promo/{id}` | Admin | Toggle promo code status (active vs inactive) |

@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, Numeric, Float, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import ARRAY
 from .database import Base
 
 class User(Base):
@@ -34,6 +35,7 @@ class Product(Base):
     avg_rating = Column(Float, default=0.0, nullable=False)
     review_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    embedding = Column(ARRAY(Float), nullable=True)
 
     # Relationships
     cart_items = relationship("CartItem", back_populates="product", cascade="all, delete-orphan")

@@ -28,6 +28,9 @@ async def admin_list_products(db: Session = Depends(get_db)):
 @router.post("/products", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 async def admin_create_product(product_in: ProductCreate, db: Session = Depends(get_db)):
     new_product = Product(**product_in.model_dump())
+    from ..utils.embeddings import get_embedding
+    text_to_embed = f"{new_product.name} {new_product.category} {new_product.description or ''}"
+    new_product.embedding = get_embedding(text_to_embed)
     db.add(new_product)
     db.commit()
     db.refresh(new_product)
@@ -42,9 +45,18 @@ async def admin_update_product(id: int, product_in: ProductUpdate, db: Session =
             detail="Product not found"
         )
         
+    name_changed = product_in.name is not None and product_in.name != product.name
+    category_changed = product_in.category is not None and product_in.category != product.category
+    description_changed = product_in.description is not None and product_in.description != product.description
+
     for field, value in product_in.model_dump(exclude_unset=True).items():
         setattr(product, field, value)
         
+    if name_changed or category_changed or description_changed:
+        from ..utils.embeddings import get_embedding
+        text_to_embed = f"{product.name} {product.category} {product.description or ''}"
+        product.embedding = get_embedding(text_to_embed)
+
     db.commit()
     db.refresh(product)
     return product
